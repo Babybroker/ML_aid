@@ -33,8 +33,10 @@ def split_data(dataframe, batch_size, use_validation=False, is_timeseries=False)
     train_length = int(round(n * 0.7, 0))
     train_length = train_length - train_length % batch_size
     if is_timeseries:
+        print('Data has been split')
         return split_timeseries()
     else:
+        print('Data has been split')
         return split_non_timeseries()
 
 
@@ -55,7 +57,7 @@ def normalize(train_df, test_df, val_df=None, normalization_method='unity_based'
         norm_df = dataframe.copy()
         if not_norm_cols:
             norm_cols = np.setdiff1d(norm_df.columns, not_norm_cols)
-            norm_df.loc[:, norm_cols] = (norm_df.loc[:, norm_cols] - min_val[norm_cols]) / (
+            norm_df.loc[norm_cols] = (norm_df.loc[norm_cols] - min_val[norm_cols]) / (
                     max_val[norm_cols] - min_val[norm_cols])
         else:
             norm_df = (norm_df - min_val) / (max_val - min_val)
@@ -88,29 +90,37 @@ def normalize(train_df, test_df, val_df=None, normalization_method='unity_based'
         return [normed_train, normed_test, denormalize_vals, normed_val]
 
 
-def create_windows(train_df, test_df, target_col, window_len, shift, batch_size, val_df=None, answer_len=1):
+def create_windows(train_df, test_df, target_col, window_len, shift, batch_size, val_df=None, target_len=1):
     def make_windows(data):
         """Creates windows"""
         amnt_data_points = len(data)
-        data = data[data.index < amnt_data_points - amnt_data_points % window_len+shift]  # cutoff to create equal parts
+        print('Started making windows')
+        print(f'There are {amnt_data_points} datapoints')
+        data = data[
+            data.index < amnt_data_points - amnt_data_points % window_len + shift]  # cutoff to create equal parts
         x_data = []
         y_data = []
         for i in range(0, len(data) - window_len, shift):
             temp_set = data[i:(i + window_len + shift)].reset_index(drop=True)
             input_set = temp_set[:window_len]
             x_data.append(input_set)
-            if answer_len != 1:
-                y_data.append(temp_set.loc[window_len:window_len + shift + answer_len - 1, target_col])  # takes the last values of the temp set
+            if target_len != 1:
+                y_data.append(temp_set.loc[window_len:window_len + shift + target_len - 1,
+                              target_col])  # takes the last values of the temp set
             else:
-                y_data.append([temp_set.loc[window_len + shift - 1, target_col]])  # takes the last values of the temp set
+                y_data.append(
+                    [temp_set.loc[window_len + shift - 1, target_col]])  # takes the last values of the temp set
         x_data = np.array(x_data)
         windowed_dataset = tf.data.Dataset.from_tensor_slices((x_data, y_data))
         return windowed_dataset
 
     train_windows = make_windows(train_df).shuffle(2000).batch(batch_size)
+    print('Train set is done')
     test_windows = make_windows(test_df).batch(batch_size)
+    print('Test set is done')
     if val_df is not None:
         val_windows = make_windows(val_df).batch(batch_size)
+        print('Val set is done')
         return [train_windows, test_windows, val_windows]
     else:
         return [train_windows, test_windows]
@@ -156,7 +166,7 @@ def denormalize_results(denorm_series, target_column, denorm_values, normalizati
 
 
 def prepare_data(dataframe, batch_size, target_column,
-                       use_validation=False, normalization_method='unity_based', not_norm_cols=None):
+                 use_validation=False, normalization_method='unity_based', not_norm_cols=None):
     if use_validation:
         train, test, val = split_data(dataframe, batch_size, use_validation)
         normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val,
@@ -169,8 +179,11 @@ def prepare_data(dataframe, batch_size, target_column,
         return training_data, testing_data, val_data, denormalize_vals
 
 
-def prepare_data_timeseries(dataframe, batch_size, target_column, window_len, shift,
-                       use_validation=False, normalization_method='unity_based', not_norm_cols=None):
+def prepare_timeseries_data(dataframe, batch_size, target_column, window_len, shift,
+                            target_len=1,
+                            use_validation=False, normalization_method='unity_based', not_norm_cols=None):
+    print('------------------------')
+    print('Data preperation started')
     if use_validation:
         train, test, val = split_data(dataframe, batch_size, is_timeseries=True, use_validation=True)
         normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val,
@@ -178,14 +191,14 @@ def prepare_data_timeseries(dataframe, batch_size, target_column, window_len, sh
         training_data, testing_data, val_data = create_windows(normed_train, normed_test, target_column,
                                                                window_len=window_len,
                                                                shift=shift,
-                                                               val_df=normed_val,
+                                                               target_len=target_len,
                                                                batch_size=batch_size,
-                                                               )
+                                                               val_df=normed_val)
 
         return training_data, testing_data, val_data, denormalize_vals
 
 
-def compile_and_fit(model, model_name, train_dataset, val_dataset, monitor,metrics, max_epochs, loss, patience=15):
+def compile_and_fit(model, model_name, train_dataset, val_dataset, monitor, metrics, max_epochs, loss, patience=15):
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
             f"best_model_{model_name}.h5", save_best_only=True, monitor=monitor
@@ -232,5 +245,3 @@ def plot_loss(history, model_name, loss, metrics, metric_names):
         axs[i].legend(["train", "val"], loc="best")
     plt.show()
     plt.close()
-
-
