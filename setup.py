@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='ml_aid',
+    name='MLaid',
     version='0.1',
     packages=[],
     url='',
