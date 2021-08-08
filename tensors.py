@@ -73,8 +73,8 @@ def prepare_data(dataframe, batch_size, target_column,
                  use_validation=False, normalization_method='unity_based', not_norm_cols=None):
     if use_validation:
         train, test, val = split_data(dataframe, batch_size, use_validation)
-        normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val,
-                                                                            normalization_method, not_norm_cols)
+        normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val, normalization_method,
+                                                                            not_norm_cols)
         training_data, testing_data, val_data = create_tensors(normed_train, normed_test,
                                                                val_df=normed_val,
                                                                batch_size=batch_size,
@@ -86,34 +86,42 @@ def prepare_data(dataframe, batch_size, target_column,
 def prepare_timeseries_data(dataframe, target_column, window_len,
                             batch_size=32, shift=1, target_len=1,
                             reduce_test_stepsize=False, use_validation=False,
-                            normalization_method='unity_based', not_norm_cols=None):
+                            normalization_method='standard_score', not_norm_cols=None,
+                            window_normalization=True, normalization_window_len=2500):
     print('------------------------')
     print('Data preperation started')
     if use_validation:
         train, test, val = split_data(dataframe, batch_size, is_timeseries=True, use_validation=True)
-        normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val,
-                                                                            normalization_method, not_norm_cols)
-        training_data, testing_data, val_data = create_windows(normed_train, normed_test, target_column,
-                                                               window_len=window_len,
-                                                               shift=shift,
-                                                               target_len=target_len,
-                                                               batch_size=batch_size,
-                                                               val_df=normed_val,
-                                                               reduce_test_stepsize=reduce_test_stepsize)
+        normed_data = normalize(train, test, val, normalization_method, not_norm_cols,
+                                window_normalization=window_normalization,
+                                normalization_window_len=normalization_window_len
+                                )
+        windowed_data = create_windows(normed_data[0], normed_data[1], target_column,
+                                       window_len=window_len,
+                                       shift=shift,
+                                       target_len=target_len,
+                                       batch_size=batch_size,
+                                       val_df=normed_data[2],
+                                       reduce_test_stepsize=reduce_test_stepsize
+                                       )
 
-        return training_data, testing_data, val_data, denormalize_vals
     else:
         train, test = split_data(dataframe, batch_size, is_timeseries=True, use_validation=False)
-        normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test,
-                                                                            normalization_method, not_norm_cols)
-        training_data, testing_data = create_windows(normed_train, normed_test, target_column,
-                                                     window_len=window_len,
-                                                     shift=shift,
-                                                     target_len=target_len,
-                                                     batch_size=batch_size,
-                                                     reduce_test_stepsize=reduce_test_stepsize
-                                                     )
-        return training_data, testing_data, denormalize_vals
+        normed_data = normalize(train, test, normalization_method, not_norm_cols,
+                                window_normalization=window_normalization,
+                                normalization_window_len=normalization_window_len
+                                )
+        windowed_data = create_windows(normed_data[0], normed_data[1], target_column,
+                                       window_len=window_len,
+                                       shift=shift,
+                                       target_len=target_len,
+                                       batch_size=batch_size,
+                                       reduce_test_stepsize=reduce_test_stepsize
+                                       )
+    denorm_vals = normed_data[-1]
+    output = windowed_data
+    output.append(denorm_vals)
+    return windowed_data
 
 
 def compile_and_fit(model, model_name, train_dataset, val_dataset, monitor, metrics, max_epochs, loss, patience=15):
