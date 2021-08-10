@@ -1,30 +1,41 @@
+"""
+The MLaid project is build by Kevin Dankers and released under the licence CC BY-SA. Updates can be downloaded from
+the project github https://github.com/Babybroker/ML_aid
+"""
+
 import numpy as np
 import pandas as pd
 
 
 def split_data(dataframe, batch_size=None, use_validation=False, is_timeseries=False):
     def split_non_timeseries():
-        train_df = dataframe.iloc[idx[:train_length]].reset_index(drop=True)
+        train_df = dataframe.iloc[idx[:train_length]]
+        dfs = [train_df]
         if use_validation:
             test_length = int(round(n * 0.2, 0))
             train_test_length = test_length + train_length
 
-            test_df = dataframe.iloc[idx[train_length:train_test_length]].reset_index(drop=True)
-            val_df = dataframe.iloc[idx[train_test_length:]].reset_index(drop=True)
-            return [train_df, test_df, val_df]
+            test_df = dataframe.iloc[idx[train_length:train_test_length]]
+            val_df = dataframe.iloc[idx[train_test_length:]]
+            dfs.extend([test_df, val_df])
         else:
-            test_df = dataframe.iloc[idx[train_length:]].reset_index(drop=True)
-            return [train_df, test_df]
+            test_df = dataframe.iloc[idx[train_length:]]
+            dfs.extend([test_df])
+        print('Data has been split')
+        return dfs
 
     def split_timeseries():
         train_df = dataframe[:train_length].reset_index(drop=True)
+        dfs = [train_df]
         if use_validation:
             val_df = dataframe[int(n * 0.7):int(n * 0.9)].reset_index(drop=True)
             test_df = dataframe[int(n * 0.9):].reset_index(drop=True)
-            return [train_df, test_df, val_df]
+            dfs.extend([test_df, val_df])
         else:
             test_df = dataframe[train_length:].reset_index(drop=True)
-            return [train_df, test_df]
+            dfs.extend([train_df, test_df])
+        print('Data has been split')
+        return dfs
 
     n = len(dataframe)
     idx = np.random.RandomState().permutation(n)  # create list with random indexes
@@ -33,10 +44,8 @@ def split_data(dataframe, batch_size=None, use_validation=False, is_timeseries=F
     if batch_size is not None:
         train_length = train_length - train_length % batch_size
     if is_timeseries:
-        print('Data has been split')
         return split_timeseries()
     else:
-        print('Data has been split')
         return split_non_timeseries()
 
 
@@ -154,6 +163,7 @@ def split_and_normalize(dataframe, batch_size=None, use_validation=False, is_tim
     splitted_data = split_data(dataframe, batch_size, use_validation, is_timeseries)
     if not use_validation:
         splitted_data.append(None)
+
     normalized_data = normalize(train_df=splitted_data[0], test_df=splitted_data[1], val_df=splitted_data[2],
                                 normalization_method=normalization_method, not_norm_cols=not_norm_cols,
                                 window_normalization=window_normalization,

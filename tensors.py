@@ -1,3 +1,8 @@
+"""
+The MLaid project is build by Kevin Dankers and released under the licence CC BY-SA. Updates can be downloaded from
+the project github https://github.com/Babybroker/ML_aid
+"""
+
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -70,11 +75,14 @@ def create_tensors(train_df, test_df, target_col, batch_size, val_df=None):
 
 
 def prepare_data(dataframe, batch_size, target_column,
-                 use_validation=False, normalization_method='unity_based', not_norm_cols=None):
+                 use_validation=False, normalization_method='standard_score', not_norm_cols=None):
     if use_validation:
         train, test, val = split_data(dataframe, batch_size, use_validation)
-        normed_train, normed_test, denormalize_vals, normed_val = normalize(train, test, val, normalization_method,
-                                                                            not_norm_cols)
+        normed_train, normed_test, normed_val, denormalize_vals = normalize(train, test, val,
+                                                                            normalization_method=normalization_method,
+                                                                            not_norm_cols=not_norm_cols
+                                                                            )
+        print(denormalize_vals)
         training_data, testing_data, val_data = create_tensors(normed_train, normed_test,
                                                                val_df=normed_val,
                                                                batch_size=batch_size,
