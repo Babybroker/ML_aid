@@ -5,6 +5,7 @@ the project github https://github.com/Babybroker/ML_aid
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
 def split_data(dataframe, batch_size=None, use_validation=False, is_timeseries=False):
@@ -191,3 +192,22 @@ def denormalize_results(denorm_series, target_column, denorm_values, normalizati
     if normalization_method == 'unity_based':
         denormed = unity_denormalize()
     return denormed
+
+
+def make_predictions(model, x_test, y_test, target_col, test_index, denorm_values=None):
+
+    # Make predictions
+    predictions = pd.DataFrame(model.predict(x_test), columns=['prediction'])
+
+    result_df = predictions.join(pd.DataFrame(y_test, columns=['actual']))
+    if denorm_values is not None:
+        result_df = denormalize_results(result_df, target_col, denorm_values)
+    result_df = result_df.set_index(test_index).sort_index()  # set the index from the test data as index,
+    # as those contain the timestamps
+
+    # Print the actual scores
+    print('XGBR Results')
+    print('MSE actual values:', mean_squared_error(result_df.actual, result_df.prediction))
+    print('MAE actual values:', mean_absolute_error(result_df.actual, result_df.prediction))
+    print('R2 score:', r2_score(result_df.actual, result_df.prediction))
+    return result_df
