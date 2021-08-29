@@ -7,125 +7,101 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from default_operations import normalize, split_data, denormalize_results
+from default_operations import normalize, split_data, make_predictions, prepare_windowed_data  # , denormalize_results
 
 
-def create_windows(train_df, test_df, target_col, window_len, shift, batch_size,
-                   val_df=None, target_len=1, reduce_test_stepsize=False):
-    def make_windows(data, reduced_stepsize=False):
+def create_windows(xtrain, ytrain, xtest, ytest, target_col, window_len, shift, batch_size,
+                   xval=None, yval=None, target_len=1, reduce_test_stepsize=False):
+    def make_windows(xdata, ydata, reduced_stepsize=False):
         """Creates windows"""
-        amnt_data_points = len(data)
+        amnt_data_points = len(xdata)
         print('Started making windows')
         print(f'There are {amnt_data_points} datapoints')
         total_win_len = window_len + shift + target_len - 1
-        data = data[
-            data.index < amnt_data_points - amnt_data_points % total_win_len]  # cutoff to create equal parts
+        cutoff = amnt_data_points - amnt_data_points % total_win_len
+        xdata = xdata[0:cutoff]  # cutoff to create equal parts
+        ydata = ydata[0:cutoff]
         x_data = []
         y_data = []
         if reduced_stepsize:
             step_size = shift + target_len - 1
         else:
             step_size = shift
-        for i in range(0, len(data) - total_win_len, step_size):
-            temp_set = data[i:(i + total_win_len)].reset_index(drop=True)
-            input_set = temp_set[:window_len]
-            x_data.append(input_set)
-            if target_len == 1:
-                y_data.append(
-                    [temp_set.loc[window_len + shift - 1, target_col]])  # takes the last values of the temp set
-            else:
-                y_set = temp_set.loc[window_len + shift - 1:, target_col]
-                if len(y_set) != target_len:
-                    raise print('The y-dataset is not the expected length')
-                y_data.append(y_set.to_list())  # takes the last values of the temp set
-        x_data = np.array(x_data)
-        y_data = np.array(y_data)
+        for i in range(0, len(xdata) - total_win_len, step_size):
+            x_data.append(xdata[i:(i + window_len)])
+            y_data.append(ydata[i + window_len:i+total_win_len])  # takes the last values of the temp set
+
         windowed_dataset = tf.data.Dataset.from_tensor_slices((x_data, y_data))
         return windowed_dataset
 
-    train_windows = make_windows(train_df).shuffle(2000).batch(batch_size)
+    train_windows = make_windows(xtrain, ytrain).shuffle(2000).batch(batch_size)
     print('Train set is done')
-    test_windows = make_windows(test_df, reduced_stepsize=reduce_test_stepsize).batch(batch_size)
+    test_windows = make_windows(xtest, ytest, reduced_stepsize=reduce_test_stepsize).batch(batch_size)
     print('Test set is done')
     if val_df is not None:
-        val_windows = make_windows(val_df).batch(batch_size)
+        val_windows = make_windows(xval, yval).batch(batch_size)
         print('Val set is done')
         return [train_windows, test_windows, val_windows]
     else:
         return [train_windows, test_windows]
 
 
-def create_tensors(train_df, test_df, target_col, batch_size, val_df=None):
-    def feed_input(dataframe, shuffle=False):
-        y_data = dataframe[target_col]
-        x_data = dataframe.drop(columns=[target_col])
-        dataset = tf.data.Dataset.from_tensor_slices((x_data.values, y_data))
+def create_tensors(xtrain, ytrain, xtest, ytest, batch_size, xval=None, yval=None):
+    def feed_input(X, y, shuffle=False):
+
+        dataset = tf.data.Dataset.from_tensor_slices((X, y))
         if shuffle:
             dataset = dataset.shuffle(2000)
         dataset = dataset.batch(batch_size)
         return dataset
 
-    training_data = feed_input(train_df, shuffle=True)
-    testing_data = feed_input(test_df)
-    if val_df is not None:
-        val_data = feed_input(val_df)
+    training_data = feed_input(xtrain, ytrain, shuffle=True)
+    testing_data = feed_input(xtest, ytest)
+    if xval is not None:
+        val_data = feed_input(xval, yval)
         return training_data, testing_data, val_data
     else:
         return training_data, testing_data
 
 
-def prepare_data(dataframe, batch_size, target_column,
-                 use_validation=False, normalization_method='standard_score', not_norm_cols=None):
+def prepare_data(dataframe, target_column, batch_size, use_validation=False,
+                 normalization_method='standard_score', not_norm_cols=None):
+    splitted_data = split_data(dataframe, target_col=target_column, batch_size=batch_size,
+                               use_validation=use_validation)
     if use_validation:
-        train, test, val = split_data(dataframe, batch_size, use_validation)
-        normed_train, normed_test, normed_val, denormalize_vals = normalize(train, test, val,
-                                                                            normalization_method=normalization_method,
-                                                                            not_norm_cols=not_norm_cols
-                                                                            )
-        print(denormalize_vals)
-        training_data, testing_data, val_data = create_tensors(normed_train, normed_test,
-                                                               val_df=normed_val,
+        xnormed_train, xnormed_test, xnormed_val, scaler = normalize(splitted_data[0], splitted_data[2],
+                                                                     splitted_data[4],
+                                                                     normalization_method=normalization_method,
+                                                                     not_norm_cols=not_norm_cols
+                                                                     )
+        training_data, testing_data, val_data = create_tensors(xtrain=xnormed_train,
+                                                               ytrain=splitted_data[1],
+                                                               xtest=xnormed_test,
+                                                               ytest=splitted_data[3],
+                                                               xval=xnormed_val,
+                                                               yval=splitted_data[5],
                                                                batch_size=batch_size,
-                                                               target_col=target_column
                                                                )
-        return training_data, testing_data, val_data, denormalize_vals
+        return training_data, testing_data, val_data, scaler
 
 
 def prepare_timeseries_data(dataframe, target_column, window_len,
                             batch_size=32, shift=1, target_len=1,
-                            reduce_test_stepsize=False, use_validation=False,
+                            reduce_stepsize=True, use_validation=False,
                             normalization_method='standard_score', not_norm_cols=None,
                             window_normalization=True, normalization_window_len=2500):
     print('------------------------')
     print('Data preperation started')
-    if use_validation:
-        train, test, val = split_data(dataframe, batch_size, is_timeseries=True, use_validation=True)
-        normed_data = normalize(train, test, val, normalization_method, not_norm_cols,
-                                window_normalization=window_normalization,
-                                normalization_window_len=normalization_window_len
-                                )
-        windowed_data = create_windows(normed_data[0], normed_data[1], target_column,
-                                       window_len=window_len,
-                                       shift=shift,
-                                       target_len=target_len,
-                                       batch_size=batch_size,
-                                       val_df=normed_data[2],
-                                       reduce_test_stepsize=reduce_test_stepsize
-                                       )
+    prepare_windowed_data(dataframe,
+                          target_col=target_column,
+                          window_len=window_len,
+                          target_len=target_len,
+                          shift=shift,
+                          batch_size=batch_size,
+                          use_validation=use_validation,
+                          reduced_stepsize=reduce_stepsize
+                          )
 
-    else:
-        train, test = split_data(dataframe, batch_size, is_timeseries=True, use_validation=False)
-        normed_data = normalize(train, test, normalization_method, not_norm_cols,
-                                window_normalization=window_normalization,
-                                normalization_window_len=normalization_window_len
-                                )
-        windowed_data = create_windows(normed_data[0], normed_data[1], target_column,
-                                       window_len=window_len,
-                                       shift=shift,
-                                       target_len=target_len,
-                                       batch_size=batch_size,
-                                       reduce_test_stepsize=reduce_test_stepsize
-                                       )
     denorm_vals = normed_data[-1]
     output = windowed_data
     output.append(denorm_vals)
@@ -181,21 +157,26 @@ def plot_loss(history, model_name, loss, metrics):
     plt.close()
 
 
-def get_predictions(model, test_data, target_col, denormalize_vals, is_binary=False, is_timeseries=False):
-    predictions = model.predict(test_data)
-
-    test_values = np.array([])
+def get_predictions(model, test_data, target_col, index, is_binary=False, is_timeseries=False, time_ahead=1):
+    test_values = np.array([0 for i in range(time_ahead)])
     for features, label in test_data.unbatch():
-        test_values = np.concatenate([test_values, label.numpy()])
+        if time_ahead == 1:
+            test_values = np.vstack([test_values, label.numpy()])
+        else:
+            test_values = np.concatenate([test_values, label.numpy()])
+    test_values = np.delete(test_values, 0)
 
-    test_values_denormed = denormalize_results(test_values, target_col, denormalize_vals)
-    pred_denormed = denormalize_results(predictions, target_col, denormalize_vals)
     if is_binary:
         result = (pd.DataFrame(round(pred_denormed), columns=['prediction'])
                   .join(pd.DataFrame(test_values_denormed, columns=['actual']))
                   )
     else:
-        result = (pd.DataFrame(pred_denormed, columns=['prediction'])
-                  .join(pd.DataFrame(test_values_denormed, columns=['actual']))
-                  )
+        result = make_predictions(model=model,
+                                  x_test=test_data,
+                                  y_test=test_values,
+                                  target_col=target_col,
+                                  is_tf=True,
+                                  index=index
+
+                                  )
     return result
