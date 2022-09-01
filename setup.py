@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mlaid',
-    version='0.1.1',
+    version='0.1.2',
     description='A python package providing forecasting functions for solar production',
 
     # url='https://github.com/EnergieID/entsoe-py',
@@ -37,7 +37,7 @@ setup(
 
     # List run-time dependencies here.  These will be installed by pip when
     # your project is installed.
-    install_requires=['fsspec', 'pandas>=1.4.0'],
+    install_requires=['seaborn', 'xgboost', 'pandas>=1.4.0', 'scikit-learn'],
 
     include_package_data=True,
 )

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from xgboost import DMatrix
 from sklearn.preprocessing import StandardScaler
 
 
@@ -14,16 +15,19 @@ def create_artifact_folder():
 
 
 class DataPrepper:
-    def __init__(self, target_column, x_cols, x_norm_cols: list = None, scale_values: bool = True, convert_to='tf_tensor'):
+    def __init__(
+            self,
+            target_column: str,
+            x_cols: list,
+            x_norm_cols: list = None,
+            scale_values: bool = True,
+            convert_to: str = 'tf_tensor'):
         self.x_cols = x_cols
         self.x_norm_cols = x_norm_cols
         self.target_col = target_column
         self.scale_values = scale_values
         self.x_scaler, self.y_scaler = StandardScaler(), StandardScaler(),
         self.convert_to = convert_to
-        assert convert_to in ['tf_tensor', 'xgb_matrix', None]
-        if convert_to == 'xgb_matrix':
-            from xgboost import DMatrix
 
     def clip_values(self, dataf: pd.DataFrame, cols_to_clip: list = None, window_length=30):
         if cols_to_clip is None:
@@ -50,8 +54,6 @@ class DataPrepper:
         return DMatrix(data=df[self.x_cols], label=df[self.target_col] if add_target else None)
 
     def create_scaled_dataset(self, dataset, is_train=False):
-
-
         dataset = dataset.copy()
         if self.scale_values:
             dataset = self._x_norm(dataset, is_train=is_train)
