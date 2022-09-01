@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mlaid',
-    version='0.1',
+    version='0.1.1',
     description='A python package providing forecasting functions for solar production',
 
     # url='https://github.com/EnergieID/entsoe-py',
