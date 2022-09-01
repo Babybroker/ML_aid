@@ -1,3 +1,4 @@
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -9,7 +10,15 @@ import MLaid.Visualization.functions as functions
 
 
 class ResultsVisualizer:
-    def __init__(self, result_df, timestamp, target_col, predict_col, folder_name=None):
+    def __init__(
+            self,
+            result_df: pd.DataFrame,
+            target_col: str,
+            predict_col: str,
+            folder_name: str = None,
+            timestamp: str = None,
+
+    ):
         self.target_col = target_col
         self.predict_col = predict_col
         self.folder_name = folder_name
