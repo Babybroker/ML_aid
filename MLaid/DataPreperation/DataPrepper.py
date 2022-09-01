@@ -21,7 +21,7 @@ class DataPrepper:
         self.scale_values = scale_values
         self.x_scaler, self.y_scaler = StandardScaler(), StandardScaler(),
         self.convert_to = convert_to
-        assert convert_to not in ['tf_tensor', 'xgb_matrix', None]
+        assert convert_to in ['tf_tensor', 'xgb_matrix', None]
         if convert_to == 'xgb_matrix':
             from xgboost import DMatrix
 
